@@ -573,6 +573,7 @@ fn literal_block(scanner: &mut Scanner) {
 // about them. For now, I'm going to make this a no-op, because I want other formatting
 // to be able to be captured inside of the block. Probably need to scan for a subset
 // of the possible tokens. Maybe just text formatting?
+// Could also do blockquote-style like markdown...
 fn quote_block(_scanner: &mut Scanner) {}
 
 fn preceding_whitespace(scanner: &mut Scanner) {
@@ -674,6 +675,32 @@ mod tests {
             Token::new(TokenType::HeaderIndicator, HEADER_INDICATOR, 0, 0, 0),
             Token::new(TokenType::Text, "Header", 0, 2, 2),
             Token::new(TokenType::EOF, "", 0, 8, 8),
+        ];
+
+        assert_eq!(tokens, expected_tokens);
+    }
+
+    #[test]
+    fn tokenizes_delims_in_header() {
+        let s = [
+            HEADER_INDICATOR,
+            HEADER_INDICATOR,
+            SPACE,
+            BOLD_DELIM,
+            "Bold Header",
+            BOLD_DELIM,
+        ]
+        .concat();
+
+        let tokens = super::tokenize(&s);
+
+        let expected_tokens = vec![
+            Token::new(TokenType::HeaderIndicator, HEADER_INDICATOR, 0, 0, 0),
+            Token::new(TokenType::HeaderIndicator, HEADER_INDICATOR, 0, 1, 1),
+            Token::new(TokenType::BoldDelim, BOLD_DELIM, 0, 3, 3),
+            Token::new(TokenType::Text, "Bold Header", 0, 5, 5),
+            Token::new(TokenType::BoldDelim, BOLD_DELIM, 0, 16, 16),
+            Token::new(TokenType::EOF, "", 0, 18, 18),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -874,6 +901,35 @@ mod tests {
         assert_eq!(tokens, expected_tokens);
     }
 
+    #[test]
+    fn inline_math_bypasses_other_delims() {
+        let s = [
+            INLINE_MATH_DELIM,
+            BOLD_DELIM,
+            "math",
+            INLINE_CODE_DELIM,
+            INLINE_MATH_DELIM,
+        ]
+        .concat();
+
+        let tokens = super::tokenize(&s);
+
+        let expected_tokens = vec![
+            Token::new(TokenType::InlineMathDelim, INLINE_MATH_DELIM, 0, 0, 0),
+            Token::new(
+                TokenType::Text,
+                &[BOLD_DELIM, "math", INLINE_CODE_DELIM].concat(),
+                0,
+                2,
+                2,
+            ),
+            Token::new(TokenType::InlineMathDelim, INLINE_MATH_DELIM, 0, 10, 10),
+            Token::new(TokenType::EOF, "", 0, 12, 12),
+        ];
+
+        assert_eq!(tokens, expected_tokens);
+    }
+
     // Inline Code
     #[test]
     fn tokenizes_inline_code() {
@@ -891,6 +947,35 @@ mod tests {
         assert_eq!(tokens, expected_tokens);
     }
 
+    #[test]
+    fn inline_code_bypasses_other_delims() {
+        let s = [
+            INLINE_CODE_DELIM,
+            BOLD_DELIM,
+            "code",
+            INLINE_MATH_DELIM,
+            INLINE_CODE_DELIM,
+        ]
+        .concat();
+
+        let tokens = super::tokenize(&s);
+
+        let expected_tokens = vec![
+            Token::new(TokenType::InlineCodeDelim, INLINE_CODE_DELIM, 0, 0, 0),
+            Token::new(
+                TokenType::Text,
+                &[BOLD_DELIM, "code", INLINE_MATH_DELIM].concat(),
+                0,
+                2,
+                2,
+            ),
+            Token::new(TokenType::InlineCodeDelim, INLINE_CODE_DELIM, 0, 10, 10),
+            Token::new(TokenType::EOF, "", 0, 12, 12),
+        ];
+
+        assert_eq!(tokens, expected_tokens);
+    }
+
     // Inline Literal
     #[test]
     fn tokenizes_inline_literal() {
@@ -901,6 +986,35 @@ mod tests {
         let expected_tokens = vec![
             Token::new(TokenType::InlineLiteralDelim, INLINE_LITERAL_DELIM, 0, 0, 0),
             Token::new(TokenType::Text, "literal", 0, 2, 2),
+            Token::new(TokenType::InlineLiteralDelim, INLINE_LITERAL_DELIM, 0, 9, 9),
+            Token::new(TokenType::EOF, "", 0, 11, 11),
+        ];
+
+        assert_eq!(tokens, expected_tokens);
+    }
+
+    #[test]
+    fn inline_literal_bypasses_other_delims() {
+        let s = [
+            INLINE_LITERAL_DELIM,
+            BOLD_DELIM,
+            "lit",
+            INLINE_MATH_DELIM,
+            INLINE_LITERAL_DELIM,
+        ]
+        .concat();
+
+        let tokens = super::tokenize(&s);
+
+        let expected_tokens = vec![
+            Token::new(TokenType::InlineLiteralDelim, INLINE_LITERAL_DELIM, 0, 0, 0),
+            Token::new(
+                TokenType::Text,
+                &[BOLD_DELIM, "lit", INLINE_MATH_DELIM].concat(),
+                0,
+                2,
+                2,
+            ),
             Token::new(TokenType::InlineLiteralDelim, INLINE_LITERAL_DELIM, 0, 9, 9),
             Token::new(TokenType::EOF, "", 0, 11, 11),
         ];
