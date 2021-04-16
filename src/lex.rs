@@ -1,5 +1,7 @@
 use std::fmt;
-// TODO: Make these configurable.
+
+use crate::util::FilePosition;
+
 // --------
 // KEYWORDS
 // --------
@@ -45,20 +47,15 @@ pub struct Token {
     /// The token type also holds any type-specific data.
     token_type: TokenType,
     lexeme: String,
-    /// The line number of this token
-    line: usize,
-    /// The number of unicode scalars between the last line break and the beginning of this token
-    position_in_line: usize,
-    /// The number of unicode scalars from the beginning of the file to this token
-    absolute_position: usize,
+    position: FilePosition,
 }
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Token{{{:?},\"{}\",{},{},{}}}",
-            self.token_type, self.lexeme, self.line, self.position_in_line, self.absolute_position
+            "Token{{{:?},\"{}\",{}}}",
+            self.token_type, self.lexeme, self.position
         )
     }
 }
@@ -67,26 +64,18 @@ impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Token{{{:?},\"{}\",{},{},{}}}",
-            self.token_type, self.lexeme, self.line, self.position_in_line, self.absolute_position
+            "Token{{{:?},\"{}\",{}}}",
+            self.token_type, self.lexeme, self.position
         )
     }
 }
 
 impl Token {
-    fn new(
-        token_type: TokenType,
-        lexeme: &str,
-        line: usize,
-        position_in_line: usize,
-        absolute_position: usize,
-    ) -> Self {
+    fn new(token_type: TokenType, lexeme: &str, position: &FilePosition) -> Self {
         Token {
             token_type,
             lexeme: lexeme.to_string(),
-            line,
-            position_in_line,
-            absolute_position,
+            position: position.clone(),
         }
     }
 }
@@ -143,14 +132,11 @@ struct Scanner {
     data: Vec<char>,
     tokens: Vec<Token>,
     idx: usize,
-    line: usize,
-    position_in_line: usize,
+    position: FilePosition,
     start_of_line: bool,
     // Separate state to handle anything that isn't a "keyword"
     current_string: String,
-    current_string_idx: usize,
-    current_string_line: usize,
-    current_string_position_in_line: usize,
+    current_string_position: FilePosition,
 }
 
 impl Iterator for Scanner {
@@ -165,15 +151,16 @@ impl Iterator for Scanner {
             // Keep track of the file position here so
             // that we don't have to do it anywhere else.
             if c == '\n' {
-                self.line += 1;
-                self.position_in_line = 0;
+                self.position.line += 1;
+                self.position.position_in_line = 0;
                 self.start_of_line = true;
             } else {
-                self.position_in_line += 1;
+                self.position.position_in_line += 1;
                 self.start_of_line = false;
             }
 
             self.idx += 1;
+            self.position.absolute_position += 1;
 
             Some(c)
         }
@@ -188,13 +175,10 @@ impl Scanner {
             data: data.chars().collect(),
             tokens: Vec::new(),
             idx: 0,
-            line: 0,
-            position_in_line: 0,
+            position: FilePosition::new(0, 0, 0),
             start_of_line: true,
             current_string: String::new(),
-            current_string_idx: 0,
-            current_string_line: 0,
-            current_string_position_in_line: 0,
+            current_string_position: FilePosition::new(0, 0, 0),
         }
     }
 
@@ -276,31 +260,22 @@ impl Scanner {
     }
 
     fn push_token(&mut self, token_type: TokenType, lexeme: &str) {
-        self.tokens.push(Token::new(
-            token_type,
-            &lexeme.to_string(),
-            self.line,
-            self.position_in_line,
-            self.idx,
-        ))
+        self.tokens
+            .push(Token::new(token_type, &lexeme.to_string(), &self.position))
     }
 
     fn push_text_token(&mut self) {
         self.tokens.push(Token::new(
             TokenType::Text,
             self.current_string.as_str(),
-            self.current_string_line,
-            self.current_string_position_in_line,
-            self.current_string_idx,
+            &self.current_string_position,
         ));
 
         self.current_string.clear();
     }
 
     fn set_text_start_position(&mut self) {
-        self.current_string_idx = self.idx;
-        self.current_string_line = self.line;
-        self.current_string_position_in_line = self.position_in_line;
+        self.current_string_position = self.position.clone();
     }
 
     fn has_next(&mut self) -> bool {
@@ -655,11 +630,19 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::MetadataIndicator, METADATA_INDICATOR, 0, 0, 0),
-            Token::new(TokenType::Text, "key", 0, 4, 4),
-            Token::new(TokenType::MetadataSeparator, METADATA_SEPARATOR, 0, 7, 7),
-            Token::new(TokenType::Text, "value", 0, 9, 9),
-            Token::new(TokenType::EOF, "", 0, 14, 14),
+            Token::new(
+                TokenType::MetadataIndicator,
+                METADATA_INDICATOR,
+                &FilePosition::new(0, 0, 0),
+            ),
+            Token::new(TokenType::Text, "key", &FilePosition::new(0, 4, 4)),
+            Token::new(
+                TokenType::MetadataSeparator,
+                METADATA_SEPARATOR,
+                &FilePosition::new(0, 7, 7),
+            ),
+            Token::new(TokenType::Text, "value", &FilePosition::new(0, 9, 9)),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 14, 14)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -672,9 +655,13 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::HeaderIndicator, HEADER_INDICATOR, 0, 0, 0),
-            Token::new(TokenType::Text, "Header", 0, 2, 2),
-            Token::new(TokenType::EOF, "", 0, 8, 8),
+            Token::new(
+                TokenType::HeaderIndicator,
+                HEADER_INDICATOR,
+                &FilePosition::new(0, 0, 0),
+            ),
+            Token::new(TokenType::Text, "Header", &FilePosition::new(0, 2, 2)),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 8, 8)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -695,12 +682,28 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::HeaderIndicator, HEADER_INDICATOR, 0, 0, 0),
-            Token::new(TokenType::HeaderIndicator, HEADER_INDICATOR, 0, 1, 1),
-            Token::new(TokenType::BoldDelim, BOLD_DELIM, 0, 3, 3),
-            Token::new(TokenType::Text, "Bold Header", 0, 5, 5),
-            Token::new(TokenType::BoldDelim, BOLD_DELIM, 0, 16, 16),
-            Token::new(TokenType::EOF, "", 0, 18, 18),
+            Token::new(
+                TokenType::HeaderIndicator,
+                HEADER_INDICATOR,
+                &FilePosition::new(0, 0, 0),
+            ),
+            Token::new(
+                TokenType::HeaderIndicator,
+                HEADER_INDICATOR,
+                &FilePosition::new(0, 1, 1),
+            ),
+            Token::new(
+                TokenType::BoldDelim,
+                BOLD_DELIM,
+                &FilePosition::new(0, 3, 3),
+            ),
+            Token::new(TokenType::Text, "Bold Header", &FilePosition::new(0, 5, 5)),
+            Token::new(
+                TokenType::BoldDelim,
+                BOLD_DELIM,
+                &FilePosition::new(0, 16, 16),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 18, 18)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -723,12 +726,28 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::MathBlockDelim, MATH_BLOCK_DELIM, 0, 0, 0),
-            Token::new(TokenType::StructuralLineBreak, LINE_BREAK, 0, 3, 3),
-            Token::new(TokenType::Text, "math", 1, 0, 4),
-            Token::new(TokenType::StructuralLineBreak, LINE_BREAK, 1, 4, 8),
-            Token::new(TokenType::MathBlockDelim, MATH_BLOCK_DELIM, 2, 0, 9),
-            Token::new(TokenType::EOF, "", 2, 3, 12),
+            Token::new(
+                TokenType::MathBlockDelim,
+                MATH_BLOCK_DELIM,
+                &FilePosition::new(0, 0, 0),
+            ),
+            Token::new(
+                TokenType::StructuralLineBreak,
+                LINE_BREAK,
+                &FilePosition::new(0, 3, 3),
+            ),
+            Token::new(TokenType::Text, "math", &FilePosition::new(1, 0, 4)),
+            Token::new(
+                TokenType::StructuralLineBreak,
+                LINE_BREAK,
+                &FilePosition::new(1, 4, 8),
+            ),
+            Token::new(
+                TokenType::MathBlockDelim,
+                MATH_BLOCK_DELIM,
+                &FilePosition::new(2, 0, 9),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(2, 3, 12)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -749,12 +768,28 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::ExportBlockDelim, EXPORT_BLOCK_DELIM, 0, 0, 0),
-            Token::new(TokenType::StructuralLineBreak, LINE_BREAK, 0, 3, 3),
-            Token::new(TokenType::Text, "export", 1, 0, 4),
-            Token::new(TokenType::StructuralLineBreak, LINE_BREAK, 1, 6, 10),
-            Token::new(TokenType::ExportBlockDelim, EXPORT_BLOCK_DELIM, 2, 0, 11),
-            Token::new(TokenType::EOF, "", 2, 3, 14),
+            Token::new(
+                TokenType::ExportBlockDelim,
+                EXPORT_BLOCK_DELIM,
+                &FilePosition::new(0, 0, 0),
+            ),
+            Token::new(
+                TokenType::StructuralLineBreak,
+                LINE_BREAK,
+                &FilePosition::new(0, 3, 3),
+            ),
+            Token::new(TokenType::Text, "export", &FilePosition::new(1, 0, 4)),
+            Token::new(
+                TokenType::StructuralLineBreak,
+                LINE_BREAK,
+                &FilePosition::new(1, 6, 10),
+            ),
+            Token::new(
+                TokenType::ExportBlockDelim,
+                EXPORT_BLOCK_DELIM,
+                &FilePosition::new(2, 0, 11),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(2, 3, 14)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -775,12 +810,28 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::CodeBlockDelim, CODE_BLOCK_DELIM, 0, 0, 0),
-            Token::new(TokenType::StructuralLineBreak, LINE_BREAK, 0, 3, 3),
-            Token::new(TokenType::Text, "code", 1, 0, 4),
-            Token::new(TokenType::StructuralLineBreak, LINE_BREAK, 1, 4, 8),
-            Token::new(TokenType::CodeBlockDelim, CODE_BLOCK_DELIM, 2, 0, 9),
-            Token::new(TokenType::EOF, "", 2, 3, 12),
+            Token::new(
+                TokenType::CodeBlockDelim,
+                CODE_BLOCK_DELIM,
+                &FilePosition::new(0, 0, 0),
+            ),
+            Token::new(
+                TokenType::StructuralLineBreak,
+                LINE_BREAK,
+                &FilePosition::new(0, 3, 3),
+            ),
+            Token::new(TokenType::Text, "code", &FilePosition::new(1, 0, 4)),
+            Token::new(
+                TokenType::StructuralLineBreak,
+                LINE_BREAK,
+                &FilePosition::new(1, 4, 8),
+            ),
+            Token::new(
+                TokenType::CodeBlockDelim,
+                CODE_BLOCK_DELIM,
+                &FilePosition::new(2, 0, 9),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(2, 3, 12)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -801,12 +852,28 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::LiteralBlockDelim, LITERAL_BLOCK_DELIM, 0, 0, 0),
-            Token::new(TokenType::StructuralLineBreak, LINE_BREAK, 0, 3, 3),
-            Token::new(TokenType::Text, "literal", 1, 0, 4),
-            Token::new(TokenType::StructuralLineBreak, LINE_BREAK, 1, 7, 11),
-            Token::new(TokenType::LiteralBlockDelim, LITERAL_BLOCK_DELIM, 2, 0, 12),
-            Token::new(TokenType::EOF, "", 2, 3, 15),
+            Token::new(
+                TokenType::LiteralBlockDelim,
+                LITERAL_BLOCK_DELIM,
+                &FilePosition::new(0, 0, 0),
+            ),
+            Token::new(
+                TokenType::StructuralLineBreak,
+                LINE_BREAK,
+                &FilePosition::new(0, 3, 3),
+            ),
+            Token::new(TokenType::Text, "literal", &FilePosition::new(1, 0, 4)),
+            Token::new(
+                TokenType::StructuralLineBreak,
+                LINE_BREAK,
+                &FilePosition::new(1, 7, 11),
+            ),
+            Token::new(
+                TokenType::LiteralBlockDelim,
+                LITERAL_BLOCK_DELIM,
+                &FilePosition::new(2, 0, 12),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(2, 3, 15)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -821,10 +888,18 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::BoldDelim, BOLD_DELIM, 0, 0, 0),
-            Token::new(TokenType::Text, "bold", 0, 2, 2),
-            Token::new(TokenType::BoldDelim, BOLD_DELIM, 0, 6, 6),
-            Token::new(TokenType::EOF, "", 0, 8, 8),
+            Token::new(
+                TokenType::BoldDelim,
+                BOLD_DELIM,
+                &FilePosition::new(0, 0, 0),
+            ),
+            Token::new(TokenType::Text, "bold", &FilePosition::new(0, 2, 2)),
+            Token::new(
+                TokenType::BoldDelim,
+                BOLD_DELIM,
+                &FilePosition::new(0, 6, 6),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 8, 8)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -837,10 +912,18 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::ItalicDelim, ITALIC_DELIM, 0, 0, 0),
-            Token::new(TokenType::Text, "italic", 0, 2, 2),
-            Token::new(TokenType::ItalicDelim, ITALIC_DELIM, 0, 8, 8),
-            Token::new(TokenType::EOF, "", 0, 10, 10),
+            Token::new(
+                TokenType::ItalicDelim,
+                ITALIC_DELIM,
+                &FilePosition::new(0, 0, 0),
+            ),
+            Token::new(TokenType::Text, "italic", &FilePosition::new(0, 2, 2)),
+            Token::new(
+                TokenType::ItalicDelim,
+                ITALIC_DELIM,
+                &FilePosition::new(0, 8, 8),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 10, 10)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -853,10 +936,18 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::UnderlineDelim, UNDERLINE_DELIM, 0, 0, 0),
-            Token::new(TokenType::Text, "underline", 0, 2, 2),
-            Token::new(TokenType::UnderlineDelim, UNDERLINE_DELIM, 0, 11, 11),
-            Token::new(TokenType::EOF, "", 0, 13, 13),
+            Token::new(
+                TokenType::UnderlineDelim,
+                UNDERLINE_DELIM,
+                &FilePosition::new(0, 0, 0),
+            ),
+            Token::new(TokenType::Text, "underline", &FilePosition::new(0, 2, 2)),
+            Token::new(
+                TokenType::UnderlineDelim,
+                UNDERLINE_DELIM,
+                &FilePosition::new(0, 11, 11),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 13, 13)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -869,16 +960,22 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::StrikethroughDelim, STRIKETHROUGH_DELIM, 0, 0, 0),
-            Token::new(TokenType::Text, "strikethrough", 0, 2, 2),
             Token::new(
                 TokenType::StrikethroughDelim,
                 STRIKETHROUGH_DELIM,
-                0,
-                15,
-                15,
+                &FilePosition::new(0, 0, 0),
             ),
-            Token::new(TokenType::EOF, "", 0, 17, 17),
+            Token::new(
+                TokenType::Text,
+                "strikethrough",
+                &FilePosition::new(0, 2, 2),
+            ),
+            Token::new(
+                TokenType::StrikethroughDelim,
+                STRIKETHROUGH_DELIM,
+                &FilePosition::new(0, 15, 15),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 17, 17)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -892,10 +989,18 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::InlineMathDelim, INLINE_MATH_DELIM, 0, 0, 0),
-            Token::new(TokenType::Text, "math", 0, 2, 2),
-            Token::new(TokenType::InlineMathDelim, INLINE_MATH_DELIM, 0, 6, 6),
-            Token::new(TokenType::EOF, "", 0, 8, 8),
+            Token::new(
+                TokenType::InlineMathDelim,
+                INLINE_MATH_DELIM,
+                &FilePosition::new(0, 0, 0),
+            ),
+            Token::new(TokenType::Text, "math", &FilePosition::new(0, 2, 2)),
+            Token::new(
+                TokenType::InlineMathDelim,
+                INLINE_MATH_DELIM,
+                &FilePosition::new(0, 6, 6),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 8, 8)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -915,16 +1020,22 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::InlineMathDelim, INLINE_MATH_DELIM, 0, 0, 0),
+            Token::new(
+                TokenType::InlineMathDelim,
+                INLINE_MATH_DELIM,
+                &FilePosition::new(0, 0, 0),
+            ),
             Token::new(
                 TokenType::Text,
                 &[BOLD_DELIM, "math", INLINE_CODE_DELIM].concat(),
-                0,
-                2,
-                2,
+                &FilePosition::new(0, 2, 2),
             ),
-            Token::new(TokenType::InlineMathDelim, INLINE_MATH_DELIM, 0, 10, 10),
-            Token::new(TokenType::EOF, "", 0, 12, 12),
+            Token::new(
+                TokenType::InlineMathDelim,
+                INLINE_MATH_DELIM,
+                &FilePosition::new(0, 10, 10),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 12, 12)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -938,10 +1049,18 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::InlineCodeDelim, INLINE_CODE_DELIM, 0, 0, 0),
-            Token::new(TokenType::Text, "code", 0, 2, 2),
-            Token::new(TokenType::InlineCodeDelim, INLINE_CODE_DELIM, 0, 6, 6),
-            Token::new(TokenType::EOF, "", 0, 8, 8),
+            Token::new(
+                TokenType::InlineCodeDelim,
+                INLINE_CODE_DELIM,
+                &FilePosition::new(0, 0, 0),
+            ),
+            Token::new(TokenType::Text, "code", &FilePosition::new(0, 2, 2)),
+            Token::new(
+                TokenType::InlineCodeDelim,
+                INLINE_CODE_DELIM,
+                &FilePosition::new(0, 6, 6),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 8, 8)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -961,16 +1080,22 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::InlineCodeDelim, INLINE_CODE_DELIM, 0, 0, 0),
+            Token::new(
+                TokenType::InlineCodeDelim,
+                INLINE_CODE_DELIM,
+                &FilePosition::new(0, 0, 0),
+            ),
             Token::new(
                 TokenType::Text,
                 &[BOLD_DELIM, "code", INLINE_MATH_DELIM].concat(),
-                0,
-                2,
-                2,
+                &FilePosition::new(0, 2, 2),
             ),
-            Token::new(TokenType::InlineCodeDelim, INLINE_CODE_DELIM, 0, 10, 10),
-            Token::new(TokenType::EOF, "", 0, 12, 12),
+            Token::new(
+                TokenType::InlineCodeDelim,
+                INLINE_CODE_DELIM,
+                &FilePosition::new(0, 10, 10),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 12, 12)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -984,10 +1109,18 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::InlineLiteralDelim, INLINE_LITERAL_DELIM, 0, 0, 0),
-            Token::new(TokenType::Text, "literal", 0, 2, 2),
-            Token::new(TokenType::InlineLiteralDelim, INLINE_LITERAL_DELIM, 0, 9, 9),
-            Token::new(TokenType::EOF, "", 0, 11, 11),
+            Token::new(
+                TokenType::InlineLiteralDelim,
+                INLINE_LITERAL_DELIM,
+                &FilePosition::new(0, 0, 0),
+            ),
+            Token::new(TokenType::Text, "literal", &FilePosition::new(0, 2, 2)),
+            Token::new(
+                TokenType::InlineLiteralDelim,
+                INLINE_LITERAL_DELIM,
+                &FilePosition::new(0, 9, 9),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 11, 11)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -1007,16 +1140,22 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::InlineLiteralDelim, INLINE_LITERAL_DELIM, 0, 0, 0),
+            Token::new(
+                TokenType::InlineLiteralDelim,
+                INLINE_LITERAL_DELIM,
+                &FilePosition::new(0, 0, 0),
+            ),
             Token::new(
                 TokenType::Text,
                 &[BOLD_DELIM, "lit", INLINE_MATH_DELIM].concat(),
-                0,
-                2,
-                2,
+                &FilePosition::new(0, 2, 2),
             ),
-            Token::new(TokenType::InlineLiteralDelim, INLINE_LITERAL_DELIM, 0, 9, 9),
-            Token::new(TokenType::EOF, "", 0, 11, 11),
+            Token::new(
+                TokenType::InlineLiteralDelim,
+                INLINE_LITERAL_DELIM,
+                &FilePosition::new(0, 9, 9),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 11, 11)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -1029,10 +1168,14 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::LinkOpen, LINK_OPEN, 0, 0, 0),
-            Token::new(TokenType::Text, "link", 0, 2, 2),
-            Token::new(TokenType::LinkClose, LINK_CLOSE, 0, 6, 6),
-            Token::new(TokenType::EOF, "", 0, 8, 8),
+            Token::new(TokenType::LinkOpen, LINK_OPEN, &FilePosition::new(0, 0, 0)),
+            Token::new(TokenType::Text, "link", &FilePosition::new(0, 2, 2)),
+            Token::new(
+                TokenType::LinkClose,
+                LINK_CLOSE,
+                &FilePosition::new(0, 6, 6),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 8, 8)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -1052,12 +1195,20 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::LinkOpen, LINK_OPEN, 0, 0, 0),
-            Token::new(TokenType::Text, "description", 0, 2, 2),
-            Token::new(TokenType::LinkIntermediate, LINK_INTERMEDIATE, 0, 13, 13),
-            Token::new(TokenType::Text, "link", 0, 15, 15),
-            Token::new(TokenType::LinkClose, LINK_CLOSE, 0, 19, 19),
-            Token::new(TokenType::EOF, "", 0, 21, 21),
+            Token::new(TokenType::LinkOpen, LINK_OPEN, &FilePosition::new(0, 0, 0)),
+            Token::new(TokenType::Text, "description", &FilePosition::new(0, 2, 2)),
+            Token::new(
+                TokenType::LinkIntermediate,
+                LINK_INTERMEDIATE,
+                &FilePosition::new(0, 13, 13),
+            ),
+            Token::new(TokenType::Text, "link", &FilePosition::new(0, 15, 15)),
+            Token::new(
+                TokenType::LinkClose,
+                LINK_CLOSE,
+                &FilePosition::new(0, 19, 19),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 21, 21)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -1070,9 +1221,17 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::StructuralSpace, SPACE, 0, 0, 0),
-            Token::new(TokenType::StructuralSpace, SPACE, 0, 1, 1),
-            Token::new(TokenType::EOF, "", 0, 2, 2),
+            Token::new(
+                TokenType::StructuralSpace,
+                SPACE,
+                &FilePosition::new(0, 0, 0),
+            ),
+            Token::new(
+                TokenType::StructuralSpace,
+                SPACE,
+                &FilePosition::new(0, 1, 1),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 2, 2)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -1085,9 +1244,9 @@ mod tests {
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
-            Token::new(TokenType::StructuralTab, TAB, 0, 0, 0),
-            Token::new(TokenType::StructuralTab, TAB, 0, 1, 1),
-            Token::new(TokenType::EOF, "", 0, 2, 2),
+            Token::new(TokenType::StructuralTab, TAB, &FilePosition::new(0, 0, 0)),
+            Token::new(TokenType::StructuralTab, TAB, &FilePosition::new(0, 1, 1)),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 2, 2)),
         ];
 
         assert_eq!(tokens, expected_tokens);
