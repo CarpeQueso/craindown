@@ -16,11 +16,11 @@ Expr -> Metadata
 
 BlockEnd -> EOF | (LineBreak + LineBreak*)
 
-Metadata -> MetadataIndicator + [^ \t\n:] + MetadataSeparator + [???] + BlockEnd
+Metadata -> MetadataIndicator + [^ \t\n:] + MetadataSeparator + <is whitespace allowed here?> + BlockEnd
 
 Header -> HeaderIndicator{1,6} + (TextExpr+) + BlockEnd
 
-TextBlock -> (TextExpr+)
+TextBlock -> (TextExpr+) + BlockEnd
 
 TextExpr -> PlainText
             | InlineMath

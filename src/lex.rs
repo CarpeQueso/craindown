@@ -6,34 +6,34 @@ use crate::util::FilePosition;
 // KEYWORDS
 // --------
 // These must be at the start of a line.
-const METADATA_INDICATOR: &'static str = ">>+";
-const HEADER_INDICATOR: &'static str = "#";
-const MATH_BLOCK_DELIM: &'static str = "$$$";
-const EXPORT_BLOCK_DELIM: &'static str = ">>>";
-const CODE_BLOCK_DELIM: &'static str = "```";
-const LITERAL_BLOCK_DELIM: &'static str = "%%%";
-const QUOTE_BLOCK_DELIM: &'static str = "\"\"\"";
+pub const METADATA_INDICATOR: &'static str = ">>+";
+pub const SECTION_HEADING_INDICATOR: &'static str = "#";
+pub const MATH_BLOCK_DELIM: &'static str = "$$$";
+pub const EXPORT_BLOCK_DELIM: &'static str = ">>>";
+pub const CODE_BLOCK_DELIM: &'static str = "```";
+pub const LITERAL_BLOCK_DELIM: &'static str = "%%%";
+pub const QUOTE_BLOCK_DELIM: &'static str = "\"\"\"";
 
 // These can be after the start of a line, but are sometimes context-dependent.
-const METADATA_SEPARATOR: &'static str = ":";
-const INLINE_MATH_DELIM: &'static str = "$$";
-const INLINE_CODE_DELIM: &'static str = "``";
-const INLINE_LITERAL_DELIM: &'static str = "%%";
-const BOLD_DELIM: &'static str = "**";
-const ITALIC_DELIM: &'static str = "//";
-const UNDERLINE_DELIM: &'static str = "__";
-const STRIKETHROUGH_DELIM: &'static str = "~~";
-const LINK_OPEN: &'static str = "[[";
-const LINK_CLOSE: &'static str = "]]";
-const LINK_INTERMEDIATE: &'static str = "][";
+pub const METADATA_SEPARATOR: &'static str = ":";
+pub const INLINE_MATH_DELIM: &'static str = "$$";
+pub const INLINE_CODE_DELIM: &'static str = "``";
+pub const INLINE_LITERAL_DELIM: &'static str = "%%";
+pub const BOLD_DELIM: &'static str = "**";
+pub const ITALIC_DELIM: &'static str = "//";
+pub const UNDERLINE_DELIM: &'static str = "__";
+pub const STRIKETHROUGH_DELIM: &'static str = "~~";
+pub const LINK_OPEN: &'static str = "[[";
+pub const LINK_CLOSE: &'static str = "]]";
+pub const LINK_INTERMEDIATE: &'static str = "][";
 
-const SPACE: &'static str = " ";
-const TAB: &'static str = "\t";
-const WINDOWS_LINE_BREAK: &'static str = "\r\n";
-const LINE_BREAK: &'static str = "\n";
+pub const SPACE: &'static str = " ";
+pub const TAB: &'static str = "\t";
+pub const WINDOWS_LINE_BREAK: &'static str = "\r\n";
+pub const LINE_BREAK: &'static str = "\n";
 
-const _INLINE_WHITESPACE_PATTERNS: [&'static str; 2] = [SPACE, TAB];
-const LINE_BREAK_PATTERNS: [&'static str; 2] = [WINDOWS_LINE_BREAK, LINE_BREAK];
+pub const _INLINE_WHITESPACE_PATTERNS: [&'static str; 2] = [SPACE, TAB];
+pub const LINE_BREAK_PATTERNS: [&'static str; 2] = [WINDOWS_LINE_BREAK, LINE_BREAK];
 
 pub fn tokenize(s: &str) -> Vec<Token> {
     let mut scanner = Scanner::new(&s);
@@ -45,9 +45,9 @@ pub fn tokenize(s: &str) -> Vec<Token> {
 #[derive(Clone, PartialEq)]
 pub struct Token {
     /// The token type also holds any type-specific data.
-    token_type: TokenType,
-    lexeme: String,
-    position: FilePosition,
+    pub token_type: TokenType,
+    pub lexeme: String,
+    pub position: FilePosition,
 }
 
 impl fmt::Display for Token {
@@ -85,7 +85,7 @@ pub enum TokenType {
     // TODO: I don't know if "Indicator" is sufficiently descriptive...
     MetadataIndicator,
     MetadataSeparator,
-    HeaderIndicator,
+    SectionHeadingIndicator,
     MathBlockDelim,
     ExportBlockDelim,
     CodeBlockDelim,
@@ -105,7 +105,7 @@ pub enum TokenType {
     StructuralLineBreak,
     StructuralSpace,
     StructuralTab,
-    EOF,
+    EOF, // TODO: Does an EOF token make things easier or harder?
 }
 
 struct MatchHandler {
@@ -329,7 +329,11 @@ impl Scanner {
     fn scan_tokens(&mut self) -> Vec<Token> {
         let start_of_line_match_handlers = vec![
             MatchHandler::new(METADATA_INDICATOR, TokenType::MetadataIndicator, metadata),
-            MatchHandler::new(HEADER_INDICATOR, TokenType::HeaderIndicator, header),
+            MatchHandler::new(
+                SECTION_HEADING_INDICATOR,
+                TokenType::SectionHeadingIndicator,
+                section_heading,
+            ),
             MatchHandler::new(MATH_BLOCK_DELIM, TokenType::MathBlockDelim, math_block),
             MatchHandler::new(
                 EXPORT_BLOCK_DELIM,
@@ -464,18 +468,21 @@ fn metadata(scanner: &mut Scanner) {
     }
 }
 
-fn header(scanner: &mut Scanner) {
-    // At this point, we've already discovered one header token
+fn section_heading(scanner: &mut Scanner) {
+    // At this point, we've already discovered one section heading token
     // We need to see if there are more.
-    while scanner.peek_match(HEADER_INDICATOR) {
-        scanner.push_token(TokenType::HeaderIndicator, HEADER_INDICATOR);
+    while scanner.peek_match(SECTION_HEADING_INDICATOR) {
+        scanner.push_token(
+            TokenType::SectionHeadingIndicator,
+            SECTION_HEADING_INDICATOR,
+        );
 
         scanner.next();
     }
 
     scanner.advance_past_inline_whitespace();
 
-    // We don't push the text itself, because we want inline tokens in the header
+    // We don't push the text itself, because we want inline tokens in the heading
     // to be processed as well.
 }
 
@@ -649,32 +656,32 @@ mod tests {
     }
 
     #[test]
-    fn tokenizes_header() {
-        let s = [HEADER_INDICATOR, " Header"].concat();
+    fn tokenizes_section_heading() {
+        let s = [SECTION_HEADING_INDICATOR, " Heading"].concat();
 
         let tokens = super::tokenize(&s);
 
         let expected_tokens = vec![
             Token::new(
-                TokenType::HeaderIndicator,
-                HEADER_INDICATOR,
+                TokenType::SectionHeadingIndicator,
+                SECTION_HEADING_INDICATOR,
                 &FilePosition::new(0, 0, 0),
             ),
-            Token::new(TokenType::Text, "Header", &FilePosition::new(0, 2, 2)),
-            Token::new(TokenType::EOF, "", &FilePosition::new(0, 8, 8)),
+            Token::new(TokenType::Text, "Heading", &FilePosition::new(0, 2, 2)),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 9, 9)),
         ];
 
         assert_eq!(tokens, expected_tokens);
     }
 
     #[test]
-    fn tokenizes_delims_in_header() {
+    fn tokenizes_delims_in_section_heading() {
         let s = [
-            HEADER_INDICATOR,
-            HEADER_INDICATOR,
+            SECTION_HEADING_INDICATOR,
+            SECTION_HEADING_INDICATOR,
             SPACE,
             BOLD_DELIM,
-            "Bold Header",
+            "Bold Heading",
             BOLD_DELIM,
         ]
         .concat();
@@ -683,13 +690,13 @@ mod tests {
 
         let expected_tokens = vec![
             Token::new(
-                TokenType::HeaderIndicator,
-                HEADER_INDICATOR,
+                TokenType::SectionHeadingIndicator,
+                SECTION_HEADING_INDICATOR,
                 &FilePosition::new(0, 0, 0),
             ),
             Token::new(
-                TokenType::HeaderIndicator,
-                HEADER_INDICATOR,
+                TokenType::SectionHeadingIndicator,
+                SECTION_HEADING_INDICATOR,
                 &FilePosition::new(0, 1, 1),
             ),
             Token::new(
@@ -697,19 +704,19 @@ mod tests {
                 BOLD_DELIM,
                 &FilePosition::new(0, 3, 3),
             ),
-            Token::new(TokenType::Text, "Bold Header", &FilePosition::new(0, 5, 5)),
+            Token::new(TokenType::Text, "Bold Heading", &FilePosition::new(0, 5, 5)),
             Token::new(
                 TokenType::BoldDelim,
                 BOLD_DELIM,
-                &FilePosition::new(0, 16, 16),
+                &FilePosition::new(0, 17, 17),
             ),
-            Token::new(TokenType::EOF, "", &FilePosition::new(0, 18, 18)),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 19, 19)),
         ];
 
         assert_eq!(tokens, expected_tokens);
     }
 
-    // Lots of additional header tests needed...
+    // Lots of additional heading tests needed...
 
     // Math block
     #[test]
