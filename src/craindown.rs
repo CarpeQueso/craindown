@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 pub struct Craindown {}
 
 impl Craindown {
@@ -6,7 +8,9 @@ impl Craindown {
     }
 }
 
-pub enum Expr {
+// TODO: Kind of needs to be changed since metadata doesn't really feel like a "block".
+#[derive(Clone)]
+pub enum BlockElement {
     Metadata(Metadata),
     SectionHeading(SectionHeading),
     TextBlock(TextBlock),
@@ -17,9 +21,40 @@ pub enum Expr {
     QuoteBlock(QuoteBlock),
 }
 
+// TODO: Change name, but "inline" is the right idea.
+#[derive(Clone)]
+pub enum InlineElement {
+    Text(Text),
+    Link(Link),
+}
+
+#[derive(Clone)]
+pub struct Text {
+    text_type: TextType,
+    text: String,
+}
+
+#[derive(Clone)]
+pub enum TextType {
+    Math,
+    Code,
+    Literal,
+    Formatted(HashSet<FormatSpecifier>),
+    Plain,
+}
+
+#[derive(Clone, PartialEq)]
+pub enum FormatSpecifier {
+    Bold,
+    Italic,
+    Underline,
+    Strikethrough,
+}
+
+#[derive(Clone, PartialEq)]
 pub struct Metadata {
-    key: String,
-    value: String,
+    pub key: String,
+    pub value: String,
 }
 
 impl Metadata {
@@ -31,66 +66,95 @@ impl Metadata {
     }
 }
 
+#[derive(Clone)]
 pub struct SectionHeading {
     pub level: usize,
+    pub contents: Vec<InlineElement>,
 }
 
 impl SectionHeading {
-    pub fn new() -> Self {
-        SectionHeading { level: 1 }
+    pub fn new(contents: Vec<InlineElement>) -> Self {
+        SectionHeading { level: 1, contents }
     }
 }
 
-pub struct TextBlock {}
+#[derive(Clone)]
+pub struct TextBlock {
+    pub contents: Vec<InlineElement>,
+}
 
 impl TextBlock {
-    pub fn new() -> Self {
-        TextBlock {}
+    pub fn new(contents: Vec<InlineElement>) -> Self {
+        TextBlock { contents }
     }
 }
 
+#[derive(Clone, PartialEq)]
 pub struct MathBlock {
+    // One day this may become slightly more standardized. Not today...
     pub options: Option<String>,
     pub contents: String,
 }
 
 impl MathBlock {
-    pub fn new() -> Self {
-        MathBlock {
-            options: None,
-            contents: String::new(),
-        }
+    pub fn new(options: Option<String>, contents: String) -> Self {
+        Self { options, contents }
     }
 }
 
-pub struct ExportBlock {}
+#[derive(Clone, PartialEq)]
+pub struct ExportBlock {
+    pub options: Option<String>,
+    pub contents: String,
+}
 
 impl ExportBlock {
-    pub fn new() -> Self {
-        ExportBlock {}
+    pub fn new(options: Option<String>, contents: String) -> Self {
+        Self { options, contents }
     }
 }
 
-pub struct CodeBlock {}
+#[derive(Clone, PartialEq)]
+pub struct CodeBlock {
+    pub options: Option<String>,
+    pub contents: String,
+}
 
 impl CodeBlock {
-    pub fn new() -> Self {
-        CodeBlock {}
+    pub fn new(options: Option<String>, contents: String) -> Self {
+        Self { options, contents }
     }
 }
 
-pub struct LiteralBlock {}
+#[derive(Clone, PartialEq)]
+pub struct LiteralBlock {
+    pub options: Option<String>,
+    pub contents: String,
+}
 
 impl LiteralBlock {
-    pub fn new() -> Self {
-        LiteralBlock {}
+    pub fn new(options: Option<String>, contents: String) -> Self {
+        Self { options, contents }
     }
 }
 
+#[derive(Clone, PartialEq)]
 pub struct QuoteBlock {}
 
 impl QuoteBlock {
     pub fn new() -> Self {
         QuoteBlock {}
+    }
+}
+
+#[derive(Clone, PartialEq)]
+pub struct Link {
+    description: Option<String>,
+    uri: String,
+}
+
+impl Link {
+    pub fn new(description: Option<String>, uri: String) -> Self {
+        Link { description, uri }
     }
 }

@@ -458,7 +458,8 @@ fn metadata(scanner: &mut Scanner) {
         scanner.advance_past_inline_whitespace();
 
         scanner.set_text_start_position();
-        scanner.collect_until(&[LINE_BREAK, WINDOWS_LINE_BREAK, SPACE, TAB]);
+        // Keys must not have whitespace, but values can.
+        scanner.collect_until(&[LINE_BREAK, WINDOWS_LINE_BREAK]);
 
         if scanner.current_string.len() > 0 {
             scanner.push_text_token();
