@@ -71,7 +71,7 @@ impl fmt::Debug for Token {
 }
 
 impl Token {
-    fn new(token_type: TokenType, lexeme: &str, position: &FilePosition) -> Self {
+    pub fn new(token_type: TokenType, lexeme: &str, position: &FilePosition) -> Self {
         Token {
             token_type,
             lexeme: lexeme.to_string(),

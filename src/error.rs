@@ -12,6 +12,7 @@ macro_rules! parse_error {
     };
 }
 
+#[derive(Debug, Clone)]
 pub struct ParseError {
     pub error_type: ParseErrorType,
     pub error_msg: String,
@@ -35,8 +36,10 @@ impl ParseError {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum ParseErrorType {
     UnexpectedToken,
     UnexpectedEOF,
+    UnclosedFormatSpecifier,
     UnexpectedEndOfTokenStream,
 }

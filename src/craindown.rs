@@ -9,7 +9,7 @@ impl Craindown {
 }
 
 // TODO: Kind of needs to be changed since metadata doesn't really feel like a "block".
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum BlockElement {
     Metadata(Metadata),
     SectionHeading(SectionHeading),
@@ -22,19 +22,28 @@ pub enum BlockElement {
 }
 
 // TODO: Change name, but "inline" is the right idea.
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum InlineElement {
     Text(Text),
     Link(Link),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Text {
     text_type: TextType,
     text: String,
 }
 
-#[derive(Clone)]
+impl Text {
+    pub fn new(text_type: TextType, text: &str) -> Self {
+        Text {
+            text_type,
+            text: text.to_string(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum TextType {
     Math,
     Code,
@@ -43,7 +52,7 @@ pub enum TextType {
     Plain,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum FormatSpecifier {
     Bold,
     Italic,
@@ -51,7 +60,7 @@ pub enum FormatSpecifier {
     Strikethrough,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Metadata {
     pub key: String,
     pub value: String,
@@ -66,19 +75,19 @@ impl Metadata {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SectionHeading {
     pub level: usize,
     pub contents: Vec<InlineElement>,
 }
 
 impl SectionHeading {
-    pub fn new(contents: Vec<InlineElement>) -> Self {
-        SectionHeading { level: 1, contents }
+    pub fn new(level: usize, contents: Vec<InlineElement>) -> Self {
+        SectionHeading { level, contents }
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TextBlock {
     pub contents: Vec<InlineElement>,
 }
@@ -89,7 +98,7 @@ impl TextBlock {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MathBlock {
     // One day this may become slightly more standardized. Not today...
     pub options: Option<String>,
@@ -97,48 +106,80 @@ pub struct MathBlock {
 }
 
 impl MathBlock {
-    pub fn new(options: Option<String>, contents: String) -> Self {
-        Self { options, contents }
+    pub fn new(options: Option<&str>, contents: &str) -> Self {
+        let options = match options {
+            Some(s) => Some(s.to_string()),
+            None => None,
+        };
+
+        Self {
+            options,
+            contents: contents.to_string(),
+        }
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ExportBlock {
     pub options: Option<String>,
     pub contents: String,
 }
 
 impl ExportBlock {
-    pub fn new(options: Option<String>, contents: String) -> Self {
-        Self { options, contents }
+    pub fn new(options: Option<&str>, contents: &str) -> Self {
+        let options = match options {
+            Some(s) => Some(s.to_string()),
+            None => None,
+        };
+
+        Self {
+            options,
+            contents: contents.to_string(),
+        }
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct CodeBlock {
     pub options: Option<String>,
     pub contents: String,
 }
 
 impl CodeBlock {
-    pub fn new(options: Option<String>, contents: String) -> Self {
-        Self { options, contents }
+    pub fn new(options: Option<&str>, contents: &str) -> Self {
+        let options = match options {
+            Some(s) => Some(s.to_string()),
+            None => None,
+        };
+
+        Self {
+            options,
+            contents: contents.to_string(),
+        }
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct LiteralBlock {
     pub options: Option<String>,
     pub contents: String,
 }
 
 impl LiteralBlock {
-    pub fn new(options: Option<String>, contents: String) -> Self {
-        Self { options, contents }
+    pub fn new(options: Option<&str>, contents: &str) -> Self {
+        let options = match options {
+            Some(s) => Some(s.to_string()),
+            None => None,
+        };
+
+        Self {
+            options,
+            contents: contents.to_string(),
+        }
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct QuoteBlock {}
 
 impl QuoteBlock {
@@ -147,14 +188,22 @@ impl QuoteBlock {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Link {
     description: Option<String>,
     uri: String,
 }
 
 impl Link {
-    pub fn new(description: Option<String>, uri: String) -> Self {
-        Link { description, uri }
+    pub fn new(description: Option<&str>, uri: &str) -> Self {
+        let description = match description {
+            Some(s) => Some(s.to_string()),
+            None => None,
+        };
+
+        Link {
+            description,
+            uri: uri.to_string(),
+        }
     }
 }
