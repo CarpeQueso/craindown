@@ -113,8 +113,8 @@ struct MatchHandler {
     pub string_to_match: String,
     // ... push this token...
     pub token_type: TokenType,
-    // ... and handle any context dependent processing this way.
-    pub handler_fn: fn(&mut Scanner), //TODO: Should return an error type.
+    // ... and handle any context-dependent processing this way.
+    pub handler_fn: fn(&mut Scanner),
 }
 
 impl MatchHandler {

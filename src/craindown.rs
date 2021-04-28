@@ -1,10 +1,14 @@
 use std::collections::HashSet;
 
-pub struct Craindown {}
+pub struct Craindown {
+    blocks: Vec<BlockElement>,
+}
 
 impl Craindown {
-    pub fn new() -> Self {
-        Craindown {}
+    pub fn new(blocks: &[BlockElement]) -> Self {
+        Craindown {
+            blocks: blocks.to_vec(),
+        }
     }
 }
 

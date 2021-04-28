@@ -29,7 +29,7 @@ pub type ParseResult<T> = Result<T, ParseError>;
 struct Parser<'a> {
     tokens: &'a [Token],
     idx: usize,
-    expressions: Vec<BlockElement>,
+    blocks: Vec<BlockElement>,
     errors: Vec<ParseError>,
 }
 
@@ -42,7 +42,7 @@ impl<'a> Parser<'a> {
         Parser {
             tokens,
             idx: 0,
-            expressions: Vec::new(),
+            blocks: Vec::new(),
             errors: Vec::new(),
         }
     }
@@ -149,14 +149,16 @@ impl<'a> Parser<'a> {
     }
 
     fn parse(&mut self) -> Result<Craindown, (Craindown, Vec<ParseError>)> {
+        // TODO: Find a clean way of advancing past all whitespace until the first block.
+
         // An empty file is a valid file, so we should check for that before continuing.
         if self.peek_match(&TokenType::EOF) {
-            return Ok(Craindown::new());
+            return Ok(Craindown::new(&[]));
         }
 
         while !self.is_at_end() {
             match self.block() {
-                Ok(block) => self.expressions.push(block),
+                Ok(block) => self.blocks.push(block),
                 Err(err) => {
                     self.errors.push(err);
                     // Advance the iterator to a point where it can continue parsing.
@@ -165,10 +167,13 @@ impl<'a> Parser<'a> {
             };
         }
 
-        // TODO: Do we need some kind of intermediate form before the final return
-        // value is generated?
+        let craindown = Craindown::new(&self.blocks);
 
-        Ok(Craindown::new())
+        if self.errors.len() > 0 {
+            Err((craindown, self.errors.clone()))
+        } else {
+            Ok(craindown)
+        }
     }
 
     fn block(&mut self) -> ParseResult<BlockElement> {
@@ -621,6 +626,97 @@ mod tests {
     }
 
     #[test]
+    fn parses_export_block() {
+        let tokens = vec![
+            Token::new(
+                TokenType::StructuralLineBreak,
+                LINE_BREAK,
+                &FilePosition::new(0, 3, 3),
+            ),
+            Token::new(TokenType::Text, "export", &FilePosition::new(1, 0, 4)),
+            Token::new(
+                TokenType::StructuralLineBreak,
+                LINE_BREAK,
+                &FilePosition::new(1, 6, 10),
+            ),
+            Token::new(
+                TokenType::ExportBlockDelim,
+                EXPORT_BLOCK_DELIM,
+                &FilePosition::new(2, 0, 11),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(2, 3, 14)),
+        ];
+
+        let expected_export_block = ExportBlock::new(None, "export");
+
+        let mut parser = Parser::new(&tokens);
+
+        assert_eq!(parser.export_block().unwrap(), expected_export_block)
+    }
+
+    #[test]
+    fn parses_code_block() {
+        let tokens = vec![
+            Token::new(
+                TokenType::StructuralLineBreak,
+                LINE_BREAK,
+                &FilePosition::new(0, 3, 3),
+            ),
+            Token::new(TokenType::Text, "code", &FilePosition::new(1, 0, 4)),
+            Token::new(
+                TokenType::StructuralLineBreak,
+                LINE_BREAK,
+                &FilePosition::new(1, 4, 8),
+            ),
+            Token::new(
+                TokenType::CodeBlockDelim,
+                CODE_BLOCK_DELIM,
+                &FilePosition::new(2, 0, 9),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(2, 3, 12)),
+        ];
+
+        let expected_code_block = CodeBlock::new(None, "code");
+
+        let mut parser = Parser::new(&tokens);
+
+        assert_eq!(parser.code_block().unwrap(), expected_code_block)
+    }
+
+    #[test]
+    fn parses_literal_block() {
+        let tokens = vec![
+            Token::new(
+                TokenType::StructuralLineBreak,
+                LINE_BREAK,
+                &FilePosition::new(0, 3, 3),
+            ),
+            Token::new(TokenType::Text, "literal", &FilePosition::new(1, 0, 4)),
+            Token::new(
+                TokenType::StructuralLineBreak,
+                LINE_BREAK,
+                &FilePosition::new(1, 7, 11),
+            ),
+            Token::new(
+                TokenType::LiteralBlockDelim,
+                LITERAL_BLOCK_DELIM,
+                &FilePosition::new(2, 0, 12),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(2, 3, 15)),
+        ];
+
+        let expected_literal_block = LiteralBlock::new(None, "literal");
+
+        let mut parser = Parser::new(&tokens);
+
+        assert_eq!(parser.literal_block().unwrap(), expected_literal_block)
+    }
+
+    // TODO: Formatted text (various)
+
+    // TODO: Inline math, code, literal
+
+    #[test]
     fn parses_link_without_description() {
         let tokens = vec![
             Token::new(TokenType::Text, "link", &FilePosition::new(0, 2, 2)),
@@ -661,4 +757,6 @@ mod tests {
 
         assert_eq!(parser.link().unwrap(), expected_link)
     }
+
+    // TODO: Block end
 }
