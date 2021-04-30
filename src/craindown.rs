@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+#[derive(Clone, Debug)]
 pub struct Craindown {
     blocks: Vec<BlockElement>,
 }
@@ -12,7 +13,6 @@ impl Craindown {
     }
 }
 
-// TODO: Kind of needs to be changed since metadata doesn't really feel like a "block".
 #[derive(Clone, Debug)]
 pub enum BlockElement {
     Metadata(Metadata),
@@ -23,45 +23,6 @@ pub enum BlockElement {
     CodeBlock(CodeBlock),
     LiteralBlock(LiteralBlock),
     QuoteBlock(QuoteBlock),
-}
-
-// TODO: Change name, but "inline" is the right idea.
-#[derive(Clone, Debug, PartialEq)]
-pub enum InlineElement {
-    Text(Text),
-    Link(Link),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Text {
-    text_type: TextType,
-    text: String,
-}
-
-impl Text {
-    pub fn new(text_type: TextType, text: &str) -> Self {
-        Text {
-            text_type,
-            text: text.to_string(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum TextType {
-    Math,
-    Code,
-    Literal,
-    Formatted(HashSet<FormatSpecifier>),
-    Plain,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum FormatSpecifier {
-    Bold,
-    Italic,
-    Underline,
-    Strikethrough,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -100,6 +61,44 @@ impl TextBlock {
     pub fn new(contents: Vec<InlineElement>) -> Self {
         TextBlock { contents }
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum InlineElement {
+    Text(Text),
+    Link(Link),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Text {
+    text_type: TextType,
+    text: String,
+}
+
+impl Text {
+    pub fn new(text_type: TextType, text: &str) -> Self {
+        Text {
+            text_type,
+            text: text.to_string(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum TextType {
+    Math,
+    Code,
+    Literal,
+    Formatted(HashSet<FormatSpecifier>),
+    Plain,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum FormatSpecifier {
+    Bold,
+    Italic,
+    Underline,
+    Strikethrough,
 }
 
 #[derive(Clone, Debug, PartialEq)]
