@@ -2,6 +2,7 @@ mod craindown;
 mod error;
 mod lex;
 mod parse;
+mod symbols;
 mod util;
 
 fn main() {
