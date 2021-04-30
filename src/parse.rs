@@ -1,7 +1,8 @@
 use crate::craindown::*;
 use crate::error::{ParseError, ParseErrorType};
-use crate::lex::*;
+use crate::lex::{Token, TokenType};
 use crate::parse_error;
+use crate::symbols::*;
 use crate::util::FilePosition;
 
 use std::collections::HashSet;
@@ -189,7 +190,7 @@ impl<'a> Parser<'a> {
             TokenType::CodeBlockDelim => Ok(BlockElement::CodeBlock(self.code_block()?)),
             TokenType::LiteralBlockDelim => Ok(BlockElement::LiteralBlock(self.literal_block()?)),
             TokenType::QuoteBlockDelim => Ok(BlockElement::QuoteBlock(self._quote_block()?)),
-            // Make sure these match the INLINE_ELEMENT_TOKENS array.
+            // This list should contain anything that could start a text block.
             TokenType::InlineMathDelim
             | TokenType::InlineCodeDelim
             | TokenType::InlineLiteralDelim
@@ -758,5 +759,32 @@ mod tests {
         assert_eq!(parser.link().unwrap(), expected_link)
     }
 
-    // TODO: Block end
+    #[test]
+    fn parses_eof_block_end() -> ParseResult<()> {
+        let tokens = vec![Token::new(TokenType::EOF, "", &FilePosition::new(0, 0, 0))];
+
+        let mut parser = Parser::new(&tokens);
+
+        parser.block_end()?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn parses_line_break_block_end() -> ParseResult<()> {
+        let tokens = vec![
+            Token::new(
+                TokenType::StructuralLineBreak,
+                "\n",
+                &FilePosition::new(0, 0, 0),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(1, 0, 1)),
+        ];
+
+        let mut parser = Parser::new(&tokens);
+
+        parser.block_end()?;
+
+        Ok(())
+    }
 }

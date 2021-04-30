@@ -1,39 +1,7 @@
 use std::fmt;
 
+use crate::symbols::*;
 use crate::util::FilePosition;
-
-// --------
-// KEYWORDS
-// --------
-// These must be at the start of a line.
-pub const METADATA_INDICATOR: &'static str = ">>+";
-pub const SECTION_HEADING_INDICATOR: &'static str = "#";
-pub const MATH_BLOCK_DELIM: &'static str = "$$$";
-pub const EXPORT_BLOCK_DELIM: &'static str = ">>>";
-pub const CODE_BLOCK_DELIM: &'static str = "```";
-pub const LITERAL_BLOCK_DELIM: &'static str = "%%%";
-pub const QUOTE_BLOCK_DELIM: &'static str = "\"\"\"";
-
-// These can be after the start of a line, but are sometimes context-dependent.
-pub const METADATA_SEPARATOR: &'static str = ":";
-pub const INLINE_MATH_DELIM: &'static str = "$$";
-pub const INLINE_CODE_DELIM: &'static str = "``";
-pub const INLINE_LITERAL_DELIM: &'static str = "%%";
-pub const BOLD_DELIM: &'static str = "**";
-pub const ITALIC_DELIM: &'static str = "//";
-pub const UNDERLINE_DELIM: &'static str = "__";
-pub const STRIKETHROUGH_DELIM: &'static str = "~~";
-pub const LINK_OPEN: &'static str = "[[";
-pub const LINK_CLOSE: &'static str = "]]";
-pub const LINK_INTERMEDIATE: &'static str = "][";
-
-pub const SPACE: &'static str = " ";
-pub const TAB: &'static str = "\t";
-pub const WINDOWS_LINE_BREAK: &'static str = "\r\n";
-pub const LINE_BREAK: &'static str = "\n";
-
-pub const _INLINE_WHITESPACE_PATTERNS: [&'static str; 2] = [SPACE, TAB];
-pub const LINE_BREAK_PATTERNS: [&'static str; 2] = [WINDOWS_LINE_BREAK, LINE_BREAK];
 
 pub fn tokenize(s: &str) -> Vec<Token> {
     let mut scanner = Scanner::new(&s);
@@ -105,7 +73,7 @@ pub enum TokenType {
     StructuralLineBreak,
     StructuralSpace,
     StructuralTab,
-    EOF, // TODO: Does an EOF token make things easier or harder?
+    EOF,
 }
 
 struct MatchHandler {
@@ -373,42 +341,20 @@ impl Scanner {
         // After scanning, the tokens vector will contain at minimum an EOF token.
         // So we use len() == 0 as a proxy for "hasn't been scanned yet".
         if self.tokens.len() == 0 {
-            'scan_loop: while self.idx < self.data.len() {
+            while self.idx < self.data.len() {
                 if self.start_of_line {
                     // At the start of a line, we could match anything, including tokens that
                     // can only exist at the start of the line.
-                    // TODO: These are all the same, maybe consolidate as a function
-                    for handler in &start_of_line_match_handlers {
-                        if self.match_and_maybe_process(
-                            handler.string_to_match.as_str(),
-                            &handler.token_type,
-                            handler.handler_fn,
-                        ) {
-                            // println!("Matched: {}", handler.string_to_match.as_str());
-                            continue 'scan_loop;
-                        }
+                    if self.check_match_handlers(&start_of_line_match_handlers) {
+                        continue;
                     }
 
-                    for handler in &context_independent_match_handlers {
-                        if self.match_and_maybe_process(
-                            handler.string_to_match.as_str(),
-                            &handler.token_type,
-                            handler.handler_fn,
-                        ) {
-                            // println!("Matched: {}", handler.string_to_match.as_str());
-                            continue 'scan_loop;
-                        }
+                    if self.check_match_handlers(&context_independent_match_handlers) {
+                        continue;
                     }
                 } else {
-                    for handler in &context_independent_match_handlers {
-                        if self.match_and_maybe_process(
-                            handler.string_to_match.as_str(),
-                            &handler.token_type,
-                            handler.handler_fn,
-                        ) {
-                            // println!("Matched: {}", handler.string_to_match.as_str());
-                            continue 'scan_loop;
-                        }
+                    if self.check_match_handlers(&context_independent_match_handlers) {
+                        continue;
                     }
                 }
 
@@ -427,6 +373,20 @@ impl Scanner {
         }
 
         self.tokens.clone()
+    }
+
+    fn check_match_handlers(&mut self, handlers: &[MatchHandler]) -> bool {
+        for handler in handlers {
+            if self.match_and_maybe_process(
+                handler.string_to_match.as_str(),
+                &handler.token_type,
+                handler.handler_fn,
+            ) {
+                return true;
+            }
+        }
+
+        false
     }
 }
 
