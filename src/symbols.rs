@@ -2,13 +2,13 @@
 // KEYWORDS
 // --------
 // These must be at the start of a line.
-pub const METADATA_INDICATOR: &'static str = ">>+";
+pub const METADATA_INDICATOR: &'static str = "&&";
 pub const SECTION_HEADING_INDICATOR: &'static str = "#";
 pub const MATH_BLOCK_DELIM: &'static str = "$$$";
-pub const EXPORT_BLOCK_DELIM: &'static str = ">>>";
+pub const EXPORT_BLOCK_DELIM: &'static str = "===";
 pub const CODE_BLOCK_DELIM: &'static str = "```";
 pub const LITERAL_BLOCK_DELIM: &'static str = "%%%";
-pub const QUOTE_BLOCK_DELIM: &'static str = "\"\"\"";
+pub const QUOTE_BLOCK_INDICATOR: &'static str = ">";
 
 // These can be after the start of a line, but are sometimes context-dependent.
 pub const METADATA_SEPARATOR: &'static str = ":";

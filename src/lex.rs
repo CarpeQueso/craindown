@@ -58,7 +58,7 @@ pub enum TokenType {
     ExportBlockDelim,
     CodeBlockDelim,
     LiteralBlockDelim,
-    QuoteBlockDelim,
+    QuoteBlockIndicator,
     InlineMathDelim,
     InlineCodeDelim,
     InlineLiteralDelim,
@@ -295,6 +295,8 @@ impl Scanner {
     }
 
     fn scan_tokens(&mut self) -> Vec<Token> {
+        // These handlers will be processed in order. If any keywords are prefixes of others,
+        // order them appropriately so that the longer keywords are checked first.
         let start_of_line_match_handlers = vec![
             MatchHandler::new(METADATA_INDICATOR, TokenType::MetadataIndicator, metadata),
             MatchHandler::new(
@@ -314,7 +316,11 @@ impl Scanner {
                 TokenType::LiteralBlockDelim,
                 literal_block,
             ),
-            MatchHandler::new(QUOTE_BLOCK_DELIM, TokenType::QuoteBlockDelim, quote_block),
+            MatchHandler::new(
+                QUOTE_BLOCK_INDICATOR,
+                TokenType::QuoteBlockIndicator,
+                quote_block,
+            ),
             MatchHandler::new(SPACE, TokenType::StructuralSpace, preceding_whitespace),
             MatchHandler::new(TAB, TokenType::StructuralTab, preceding_whitespace),
         ];
@@ -512,12 +518,12 @@ fn literal_block(scanner: &mut Scanner) {
     handle_verbatim_block(scanner, TokenType::LiteralBlockDelim, LITERAL_BLOCK_DELIM);
 }
 
-// TODO: Think a bit more about quote blocks. They're odd, and I don't know what to do
-// about them. For now, I'm going to make this a no-op, because I want other formatting
-// to be able to be captured inside of the block. Probably need to scan for a subset
-// of the possible tokens. Maybe just text formatting?
-// Could also do blockquote-style like markdown...
-fn quote_block(_scanner: &mut Scanner) {}
+fn quote_block(scanner: &mut Scanner) {
+    // The quote block is introduced with a '>' character. After that character, we skip the
+    // inline whitespace before the start of the content, and then we're done, because we
+    // want to continue on with parsing (text formatting could exist in a quote block).
+    scanner.advance_past_inline_whitespace();
+}
 
 fn preceding_whitespace(scanner: &mut Scanner) {
     let patterns_and_tokens: [(&str, TokenType); 2] = [
@@ -603,14 +609,14 @@ mod tests {
                 METADATA_INDICATOR,
                 &FilePosition::new(0, 0, 0),
             ),
-            Token::new(TokenType::Text, "key", &FilePosition::new(0, 4, 4)),
+            Token::new(TokenType::Text, "key", &FilePosition::new(0, 3, 3)),
             Token::new(
                 TokenType::MetadataSeparator,
                 METADATA_SEPARATOR,
-                &FilePosition::new(0, 7, 7),
+                &FilePosition::new(0, 6, 6),
             ),
-            Token::new(TokenType::Text, "value", &FilePosition::new(0, 9, 9)),
-            Token::new(TokenType::EOF, "", &FilePosition::new(0, 14, 14)),
+            Token::new(TokenType::Text, "value", &FilePosition::new(0, 8, 8)),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 13, 13)),
         ];
 
         assert_eq!(tokens, expected_tokens);
@@ -848,6 +854,24 @@ mod tests {
     }
 
     // Quote block
+    #[test]
+    fn tokenizes_quote_block() {
+        let s = [QUOTE_BLOCK_INDICATOR, " Some text"].concat();
+
+        let tokens = super::tokenize(&s);
+
+        let expected_tokens = vec![
+            Token::new(
+                TokenType::QuoteBlockIndicator,
+                QUOTE_BLOCK_INDICATOR,
+                &FilePosition::new(0, 0, 0),
+            ),
+            Token::new(TokenType::Text, "Some text", &FilePosition::new(0, 2, 2)),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 11, 11)),
+        ];
+
+        assert_eq!(tokens, expected_tokens);
+    }
 
     #[test]
     fn tokenizes_inline_bold_delimiters() {

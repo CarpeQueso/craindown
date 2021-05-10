@@ -189,7 +189,7 @@ impl<'a> Parser<'a> {
             TokenType::ExportBlockDelim => Ok(BlockElement::ExportBlock(self.export_block()?)),
             TokenType::CodeBlockDelim => Ok(BlockElement::CodeBlock(self.code_block()?)),
             TokenType::LiteralBlockDelim => Ok(BlockElement::LiteralBlock(self.literal_block()?)),
-            TokenType::QuoteBlockDelim => Ok(BlockElement::QuoteBlock(self._quote_block()?)),
+            TokenType::QuoteBlockIndicator => Ok(BlockElement::QuoteBlock(self.quote_block()?)),
             // This list should contain anything that could start a text block.
             TokenType::InlineMathDelim
             | TokenType::InlineCodeDelim
@@ -315,8 +315,12 @@ impl<'a> Parser<'a> {
         Ok(LiteralBlock::new(options.as_deref(), &contents))
     }
 
-    fn _quote_block(&mut self) -> ParseResult<QuoteBlock> {
-        Ok(QuoteBlock::new())
+    fn quote_block(&mut self) -> ParseResult<QuoteBlock> {
+        let inline_elements = self.formatted_text()?;
+
+        self.block_end()?;
+
+        Ok(QuoteBlock::new(inline_elements))
     }
 
     fn text_block(&mut self) -> ParseResult<TextBlock> {
@@ -527,8 +531,8 @@ impl<'a> Parser<'a> {
         self.generic_delim(TokenType::LiteralBlockDelim, LITERAL_BLOCK_DELIM)
     }
 
-    fn _quote_block_delim(&mut self) -> ParseResult<()> {
-        self.generic_delim(TokenType::QuoteBlockDelim, QUOTE_BLOCK_DELIM)
+    fn quote_block_indicator(&mut self) -> ParseResult<()> {
+        self.generic_delim(TokenType::QuoteBlockIndicator, QUOTE_BLOCK_INDICATOR)
     }
 
     fn inline_math_delim(&mut self) -> ParseResult<()> {
@@ -713,7 +717,188 @@ mod tests {
         assert_eq!(parser.literal_block().unwrap(), expected_literal_block)
     }
 
-    // TODO: Formatted text (various)
+    #[test]
+    fn parses_formatted_text() {
+        let tokens = vec![
+            Token::new(
+                TokenType::BoldDelim,
+                BOLD_DELIM,
+                &FilePosition::new(0, 0, 0),
+            ),
+            Token::new(TokenType::Text, "bold", &FilePosition::new(0, 2, 2)),
+            Token::new(
+                TokenType::BoldDelim,
+                BOLD_DELIM,
+                &FilePosition::new(0, 6, 6),
+            ),
+            Token::new(TokenType::Text, " ", &FilePosition::new(0, 8, 8)),
+            Token::new(
+                TokenType::ItalicDelim,
+                ITALIC_DELIM,
+                &FilePosition::new(0, 9, 9),
+            ),
+            Token::new(TokenType::Text, "italic", &FilePosition::new(0, 11, 11)),
+            Token::new(
+                TokenType::ItalicDelim,
+                ITALIC_DELIM,
+                &FilePosition::new(0, 17, 17),
+            ),
+            Token::new(TokenType::Text, " ", &FilePosition::new(0, 19, 19)),
+            Token::new(
+                TokenType::UnderlineDelim,
+                UNDERLINE_DELIM,
+                &FilePosition::new(0, 20, 20),
+            ),
+            Token::new(TokenType::Text, "underline", &FilePosition::new(0, 22, 22)),
+            Token::new(
+                TokenType::UnderlineDelim,
+                UNDERLINE_DELIM,
+                &FilePosition::new(0, 31, 31),
+            ),
+            Token::new(TokenType::Text, " ", &FilePosition::new(0, 33, 33)),
+            Token::new(
+                TokenType::StrikethroughDelim,
+                STRIKETHROUGH_DELIM,
+                &FilePosition::new(0, 34, 34),
+            ),
+            Token::new(
+                TokenType::Text,
+                "strikethrough",
+                &FilePosition::new(0, 36, 36),
+            ),
+            Token::new(
+                TokenType::StrikethroughDelim,
+                STRIKETHROUGH_DELIM,
+                &FilePosition::new(0, 49, 49),
+            ),
+            Token::new(TokenType::Text, " ", &FilePosition::new(0, 51, 51)),
+            Token::new(
+                TokenType::InlineMathDelim,
+                INLINE_MATH_DELIM,
+                &FilePosition::new(0, 52, 52),
+            ),
+            Token::new(TokenType::Text, "math", &FilePosition::new(0, 54, 54)),
+            Token::new(
+                TokenType::InlineMathDelim,
+                INLINE_MATH_DELIM,
+                &FilePosition::new(0, 58, 58),
+            ),
+            Token::new(TokenType::Text, " ", &FilePosition::new(0, 60, 60)),
+            Token::new(
+                TokenType::InlineCodeDelim,
+                INLINE_CODE_DELIM,
+                &FilePosition::new(0, 61, 61),
+            ),
+            Token::new(TokenType::Text, "code", &FilePosition::new(0, 63, 63)),
+            Token::new(
+                TokenType::InlineCodeDelim,
+                INLINE_CODE_DELIM,
+                &FilePosition::new(0, 67, 67),
+            ),
+            Token::new(TokenType::Text, " ", &FilePosition::new(0, 69, 69)),
+            Token::new(
+                TokenType::InlineLiteralDelim,
+                INLINE_LITERAL_DELIM,
+                &FilePosition::new(0, 70, 70),
+            ),
+            Token::new(TokenType::Text, "literal", &FilePosition::new(0, 72, 72)),
+            Token::new(
+                TokenType::InlineLiteralDelim,
+                INLINE_LITERAL_DELIM,
+                &FilePosition::new(0, 79, 79),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 81, 81)),
+        ];
+
+        let text_type_builder = |fs: FormatSpecifier| {
+            TextType::Formatted({
+                let mut set = HashSet::new();
+                set.insert(fs);
+                set
+            })
+        };
+
+        let space_element = InlineElement::Text(Text::new(TextType::Plain, " "));
+
+        let expected_inline_elements = vec![
+            InlineElement::Text(Text::new(text_type_builder(FormatSpecifier::Bold), "bold")),
+            space_element.clone(),
+            InlineElement::Text(Text::new(
+                text_type_builder(FormatSpecifier::Italic),
+                "italic",
+            )),
+            space_element.clone(),
+            InlineElement::Text(Text::new(
+                text_type_builder(FormatSpecifier::Underline),
+                "underline",
+            )),
+            space_element.clone(),
+            InlineElement::Text(Text::new(
+                text_type_builder(FormatSpecifier::Strikethrough),
+                "strikethrough",
+            )),
+            space_element.clone(),
+            InlineElement::Text(Text::new(TextType::Math, "math")),
+            space_element.clone(),
+            InlineElement::Text(Text::new(TextType::Code, "code")),
+            space_element.clone(),
+            InlineElement::Text(Text::new(TextType::Literal, "literal")),
+        ];
+
+        let mut parser = Parser::new(&tokens);
+
+        assert_eq!(parser.formatted_text().unwrap(), expected_inline_elements)
+    }
+
+    #[test]
+    fn parses_text_block() {
+        let tokens = vec![
+            Token::new(
+                TokenType::Text,
+                "A text block.",
+                &FilePosition::new(0, 0, 0),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 13, 13)),
+        ];
+
+        let inline_elements = vec![InlineElement::Text(Text::new(
+            TextType::Plain,
+            "A text block.",
+        ))];
+
+        let expected_text_block = TextBlock::new(inline_elements);
+
+        let mut parser = Parser::new(&tokens);
+
+        // parser.text_block() is the only parsing function that rewinds the iterator.
+        // We need to advance one token to be consistent with what the function expects.
+        parser.next();
+
+        assert_eq!(parser.text_block().unwrap(), expected_text_block)
+    }
+
+    #[test]
+    fn parses_quote_block() {
+        let tokens = vec![
+            Token::new(
+                TokenType::Text,
+                "A quote block.",
+                &FilePosition::new(0, 0, 0),
+            ),
+            Token::new(TokenType::EOF, "", &FilePosition::new(0, 14, 14)),
+        ];
+
+        let inline_elements = vec![InlineElement::Text(Text::new(
+            TextType::Plain,
+            "A quote block.",
+        ))];
+
+        let expected_quote_block = QuoteBlock::new(inline_elements);
+
+        let mut parser = Parser::new(&tokens);
+
+        assert_eq!(parser.quote_block().unwrap(), expected_quote_block)
+    }
 
     // TODO: Inline math, code, literal
 

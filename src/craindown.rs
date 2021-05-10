@@ -52,7 +52,7 @@ impl SectionHeading {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TextBlock {
     pub contents: Vec<InlineElement>,
 }
@@ -183,11 +183,13 @@ impl LiteralBlock {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct QuoteBlock {}
+pub struct QuoteBlock {
+    pub contents: Vec<InlineElement>,
+}
 
 impl QuoteBlock {
-    pub fn new() -> Self {
-        QuoteBlock {}
+    pub fn new(contents: Vec<InlineElement>) -> Self {
+        QuoteBlock { contents }
     }
 }
 
