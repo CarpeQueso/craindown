@@ -101,6 +101,19 @@ pub enum FormatSpecifier {
     Strikethrough,
 }
 
+#[macro_export]
+macro_rules! formatted_text_type {
+    ( $( $fs:expr ),* ) => {
+        TextType::Formatted({
+            let mut set = HashSet::new();
+            $(
+                set.insert($fs);
+            )*
+            set
+        })
+    };
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct MathBlock {
     // One day this may become slightly more standardized. Not today...

@@ -1,9 +1,9 @@
 use crate::craindown::*;
 use crate::error::{ParseError, ParseErrorType};
 use crate::lex::{Token, TokenType};
-use crate::parse_error;
 use crate::symbols::*;
 use crate::util::FilePosition;
+use crate::{formatted_text_type, parse_error};
 
 use std::collections::HashSet;
 
@@ -810,31 +810,26 @@ mod tests {
             Token::new(TokenType::EOF, "", &FilePosition::new(0, 81, 81)),
         ];
 
-        let text_type_builder = |fs: FormatSpecifier| {
-            TextType::Formatted({
-                let mut set = HashSet::new();
-                set.insert(fs);
-                set
-            })
-        };
-
         let space_element = InlineElement::Text(Text::new(TextType::Plain, " "));
 
         let expected_inline_elements = vec![
-            InlineElement::Text(Text::new(text_type_builder(FormatSpecifier::Bold), "bold")),
+            InlineElement::Text(Text::new(
+                formatted_text_type!(FormatSpecifier::Bold),
+                "bold",
+            )),
             space_element.clone(),
             InlineElement::Text(Text::new(
-                text_type_builder(FormatSpecifier::Italic),
+                formatted_text_type!(FormatSpecifier::Italic),
                 "italic",
             )),
             space_element.clone(),
             InlineElement::Text(Text::new(
-                text_type_builder(FormatSpecifier::Underline),
+                formatted_text_type!(FormatSpecifier::Underline),
                 "underline",
             )),
             space_element.clone(),
             InlineElement::Text(Text::new(
-                text_type_builder(FormatSpecifier::Strikethrough),
+                formatted_text_type!(FormatSpecifier::Strikethrough),
                 "strikethrough",
             )),
             space_element.clone(),
