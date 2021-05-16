@@ -298,48 +298,80 @@ impl Scanner {
         // These handlers will be processed in order. If any keywords are prefixes of others,
         // order them appropriately so that the longer keywords are checked first.
         let start_of_line_match_handlers = vec![
-            MatchHandler::new(METADATA_INDICATOR, TokenType::MetadataIndicator, metadata),
+            MatchHandler::new(
+                METADATA_INDICATOR,
+                TokenType::MetadataIndicator,
+                Scanner::metadata,
+            ),
             MatchHandler::new(
                 SECTION_HEADING_INDICATOR,
                 TokenType::SectionHeadingIndicator,
-                section_heading,
+                Scanner::section_heading,
             ),
-            MatchHandler::new(MATH_BLOCK_DELIM, TokenType::MathBlockDelim, math_block),
+            MatchHandler::new(
+                MATH_BLOCK_DELIM,
+                TokenType::MathBlockDelim,
+                Scanner::math_block,
+            ),
             MatchHandler::new(
                 EXPORT_BLOCK_DELIM,
                 TokenType::ExportBlockDelim,
-                export_block,
+                Scanner::export_block,
             ),
-            MatchHandler::new(CODE_BLOCK_DELIM, TokenType::CodeBlockDelim, code_block),
+            MatchHandler::new(
+                CODE_BLOCK_DELIM,
+                TokenType::CodeBlockDelim,
+                Scanner::code_block,
+            ),
             MatchHandler::new(
                 LITERAL_BLOCK_DELIM,
                 TokenType::LiteralBlockDelim,
-                literal_block,
+                Scanner::literal_block,
             ),
             MatchHandler::new(
                 QUOTE_BLOCK_INDICATOR,
                 TokenType::QuoteBlockIndicator,
-                quote_block,
+                Scanner::quote_block,
             ),
-            MatchHandler::new(SPACE, TokenType::StructuralSpace, preceding_whitespace),
-            MatchHandler::new(TAB, TokenType::StructuralTab, preceding_whitespace),
+            MatchHandler::new(
+                SPACE,
+                TokenType::StructuralSpace,
+                Scanner::preceding_whitespace,
+            ),
+            MatchHandler::new(TAB, TokenType::StructuralTab, Scanner::preceding_whitespace),
         ];
 
         let context_independent_match_handlers = vec![
-            MatchHandler::new(INLINE_MATH_DELIM, TokenType::InlineMathDelim, inline_math),
-            MatchHandler::new(INLINE_CODE_DELIM, TokenType::InlineCodeDelim, inline_code),
+            MatchHandler::new(
+                INLINE_MATH_DELIM,
+                TokenType::InlineMathDelim,
+                Scanner::inline_math,
+            ),
+            MatchHandler::new(
+                INLINE_CODE_DELIM,
+                TokenType::InlineCodeDelim,
+                Scanner::inline_code,
+            ),
             MatchHandler::new(
                 INLINE_LITERAL_DELIM,
                 TokenType::InlineLiteralDelim,
-                inline_literal,
+                Scanner::inline_literal,
             ),
-            MatchHandler::new(BOLD_DELIM, TokenType::BoldDelim, no_op),
-            MatchHandler::new(ITALIC_DELIM, TokenType::ItalicDelim, no_op),
-            MatchHandler::new(UNDERLINE_DELIM, TokenType::UnderlineDelim, no_op),
-            MatchHandler::new(STRIKETHROUGH_DELIM, TokenType::StrikethroughDelim, no_op),
-            MatchHandler::new(LINK_OPEN, TokenType::LinkOpen, link),
-            MatchHandler::new(WINDOWS_LINE_BREAK, TokenType::StructuralLineBreak, no_op),
-            MatchHandler::new(LINE_BREAK, TokenType::StructuralLineBreak, no_op),
+            MatchHandler::new(BOLD_DELIM, TokenType::BoldDelim, Scanner::no_op),
+            MatchHandler::new(ITALIC_DELIM, TokenType::ItalicDelim, Scanner::no_op),
+            MatchHandler::new(UNDERLINE_DELIM, TokenType::UnderlineDelim, Scanner::no_op),
+            MatchHandler::new(
+                STRIKETHROUGH_DELIM,
+                TokenType::StrikethroughDelim,
+                Scanner::no_op,
+            ),
+            MatchHandler::new(LINK_OPEN, TokenType::LinkOpen, Scanner::link),
+            MatchHandler::new(
+                WINDOWS_LINE_BREAK,
+                TokenType::StructuralLineBreak,
+                Scanner::no_op,
+            ),
+            MatchHandler::new(LINE_BREAK, TokenType::StructuralLineBreak, Scanner::no_op),
             // TODO: There are other unicode line break characters. Do we care about them?
             // '\u{000B}' '\u{000C}' '\u{0085}' '\u{200E}' '\u{200F}' '\u{2028}' '\u{2029}'
         ];
@@ -394,199 +426,199 @@ impl Scanner {
 
         false
     }
-}
 
-fn metadata(scanner: &mut Scanner) {
-    scanner.advance_past_inline_whitespace();
+    fn metadata(&mut self) {
+        self.advance_past_inline_whitespace();
 
-    scanner.set_text_start_position();
+        self.set_text_start_position();
 
-    // Collect until we reach whitespace or a separator between a key, value pair.
-    scanner.collect_until(&[
-        METADATA_SEPARATOR,
-        WINDOWS_LINE_BREAK,
-        LINE_BREAK,
-        SPACE,
-        TAB,
-    ]);
+        // Collect until we reach whitespace or a separator between a key, value pair.
+        self.collect_until(&[
+            METADATA_SEPARATOR,
+            WINDOWS_LINE_BREAK,
+            LINE_BREAK,
+            SPACE,
+            TAB,
+        ]);
 
-    if scanner.current_string.len() > 0 {
-        scanner.push_text_token();
-    }
-
-    scanner.advance_past_inline_whitespace();
-
-    if scanner.peek_match(METADATA_SEPARATOR) {
-        scanner.push_token(TokenType::MetadataSeparator, METADATA_SEPARATOR);
-
-        scanner.advance(METADATA_SEPARATOR.len());
-
-        scanner.advance_past_inline_whitespace();
-
-        scanner.set_text_start_position();
-        // Keys must not have whitespace, but values can.
-        scanner.collect_until(&[LINE_BREAK, WINDOWS_LINE_BREAK]);
-
-        if scanner.current_string.len() > 0 {
-            scanner.push_text_token();
+        if self.current_string.len() > 0 {
+            self.push_text_token();
         }
 
-        scanner.advance_past_inline_whitespace();
-    }
-}
+        self.advance_past_inline_whitespace();
 
-fn section_heading(scanner: &mut Scanner) {
-    // At this point, we've already discovered one section heading token
-    // We need to see if there are more.
-    while scanner.peek_match(SECTION_HEADING_INDICATOR) {
-        scanner.push_token(
-            TokenType::SectionHeadingIndicator,
-            SECTION_HEADING_INDICATOR,
-        );
+        if self.peek_match(METADATA_SEPARATOR) {
+            self.push_token(TokenType::MetadataSeparator, METADATA_SEPARATOR);
 
-        scanner.next();
-    }
+            self.advance(METADATA_SEPARATOR.len());
 
-    scanner.advance_past_inline_whitespace();
+            self.advance_past_inline_whitespace();
 
-    // We don't push the text itself, because we want inline tokens in the heading
-    // to be processed as well.
-}
+            self.set_text_start_position();
+            // Keys must not have whitespace, but values can.
+            self.collect_until(&[LINE_BREAK, WINDOWS_LINE_BREAK]);
 
-fn handle_verbatim_block(
-    scanner: &mut Scanner,
-    block_delim_token_type: TokenType,
-    block_delim_pattern: &str,
-) {
-    scanner.advance_past_inline_whitespace();
+            if self.current_string.len() > 0 {
+                self.push_text_token();
+            }
 
-    scanner.collect_until(&LINE_BREAK_PATTERNS);
-
-    if scanner.current_string.len() > 0 {
-        scanner.push_text_token();
+            self.advance_past_inline_whitespace();
+        }
     }
 
-    // .collect_until could stop at the end of the text,
-    if scanner.peek_match(WINDOWS_LINE_BREAK) {
-        scanner.push_token(TokenType::StructuralLineBreak, WINDOWS_LINE_BREAK);
-        scanner.advance(WINDOWS_LINE_BREAK.len());
-    } else if scanner.peek_match(LINE_BREAK) {
-        scanner.push_token(TokenType::StructuralLineBreak, &LINE_BREAK);
-        scanner.advance(LINE_BREAK.len());
-    } else {
-        // Not what we expected... Just return control to the main loop.
-        return;
+    fn section_heading(&mut self) {
+        // At this point, we've already discovered one section heading token
+        // We need to see if there are more.
+        while self.peek_match(SECTION_HEADING_INDICATOR) {
+            self.push_token(
+                TokenType::SectionHeadingIndicator,
+                SECTION_HEADING_INDICATOR,
+            );
+
+            self.next();
+        }
+
+        self.advance_past_inline_whitespace();
+
+        // We don't push the text itself, because we want inline tokens in the heading
+        // to be processed as well.
     }
 
-    scanner.set_text_start_position();
-    scanner.collect_until(&[
-        &[LINE_BREAK, block_delim_pattern].concat(),
-        &[WINDOWS_LINE_BREAK, block_delim_pattern].concat(),
-    ]);
+    fn handle_verbatim_block(
+        &mut self,
+        block_delim_token_type: TokenType,
+        block_delim_pattern: &str,
+    ) {
+        self.advance_past_inline_whitespace();
 
-    if scanner.current_string.len() > 0 {
-        scanner.push_text_token();
+        self.collect_until(&LINE_BREAK_PATTERNS);
+
+        if self.current_string.len() > 0 {
+            self.push_text_token();
+        }
+
+        // .collect_until could stop at the end of the text,
+        if self.peek_match(WINDOWS_LINE_BREAK) {
+            self.push_token(TokenType::StructuralLineBreak, WINDOWS_LINE_BREAK);
+            self.advance(WINDOWS_LINE_BREAK.len());
+        } else if self.peek_match(LINE_BREAK) {
+            self.push_token(TokenType::StructuralLineBreak, &LINE_BREAK);
+            self.advance(LINE_BREAK.len());
+        } else {
+            // Not what we expected... Just return control to the main loop.
+            return;
+        }
+
+        self.set_text_start_position();
+        self.collect_until(&[
+            &[LINE_BREAK, block_delim_pattern].concat(),
+            &[WINDOWS_LINE_BREAK, block_delim_pattern].concat(),
+        ]);
+
+        if self.current_string.len() > 0 {
+            self.push_text_token();
+        }
+
+        if self.peek_match(WINDOWS_LINE_BREAK) {
+            self.push_token(TokenType::StructuralLineBreak, WINDOWS_LINE_BREAK);
+            self.advance(WINDOWS_LINE_BREAK.len());
+        } else if self.peek_match(LINE_BREAK) {
+            self.push_token(TokenType::StructuralLineBreak, &LINE_BREAK);
+            self.advance(LINE_BREAK.len());
+        }
+
+        if self.peek_match(block_delim_pattern) {
+            self.push_token(block_delim_token_type, block_delim_pattern);
+            self.advance(block_delim_pattern.len());
+        }
     }
 
-    if scanner.peek_match(WINDOWS_LINE_BREAK) {
-        scanner.push_token(TokenType::StructuralLineBreak, WINDOWS_LINE_BREAK);
-        scanner.advance(WINDOWS_LINE_BREAK.len());
-    } else if scanner.peek_match(LINE_BREAK) {
-        scanner.push_token(TokenType::StructuralLineBreak, &LINE_BREAK);
-        scanner.advance(LINE_BREAK.len());
+    fn math_block(&mut self) {
+        self.handle_verbatim_block(TokenType::MathBlockDelim, MATH_BLOCK_DELIM);
     }
 
-    if scanner.peek_match(block_delim_pattern) {
-        scanner.push_token(block_delim_token_type, block_delim_pattern);
-        scanner.advance(block_delim_pattern.len());
-    }
-}
-
-fn math_block(scanner: &mut Scanner) {
-    handle_verbatim_block(scanner, TokenType::MathBlockDelim, MATH_BLOCK_DELIM);
-}
-
-fn export_block(scanner: &mut Scanner) {
-    handle_verbatim_block(scanner, TokenType::ExportBlockDelim, EXPORT_BLOCK_DELIM);
-}
-
-fn code_block(scanner: &mut Scanner) {
-    handle_verbatim_block(scanner, TokenType::CodeBlockDelim, CODE_BLOCK_DELIM);
-}
-
-fn literal_block(scanner: &mut Scanner) {
-    handle_verbatim_block(scanner, TokenType::LiteralBlockDelim, LITERAL_BLOCK_DELIM);
-}
-
-fn quote_block(scanner: &mut Scanner) {
-    // The quote block is introduced with a '>' character. After that character, we skip the
-    // inline whitespace before the start of the content, and then we're done, because we
-    // want to continue on with parsing (text formatting could exist in a quote block).
-    scanner.advance_past_inline_whitespace();
-}
-
-fn preceding_whitespace(scanner: &mut Scanner) {
-    let patterns_and_tokens: [(&str, TokenType); 2] = [
-        (SPACE, TokenType::StructuralSpace),
-        (TAB, TokenType::StructuralTab),
-    ];
-
-    scanner.match_and_push_subset(&patterns_and_tokens);
-}
-
-fn handle_verbatim_inline(scanner: &mut Scanner, delim_token_type: TokenType, delim_pattern: &str) {
-    scanner.collect_until(&[delim_pattern, WINDOWS_LINE_BREAK, LINE_BREAK]);
-
-    if scanner.current_string.len() > 0 {
-        scanner.push_text_token();
+    fn export_block(&mut self) {
+        self.handle_verbatim_block(TokenType::ExportBlockDelim, EXPORT_BLOCK_DELIM);
     }
 
-    if scanner.peek_match(delim_pattern) {
-        scanner.push_token(delim_token_type, delim_pattern);
-        scanner.advance(delim_pattern.len());
-    }
-}
-
-fn inline_math(scanner: &mut Scanner) {
-    handle_verbatim_inline(scanner, TokenType::InlineMathDelim, INLINE_MATH_DELIM);
-}
-
-fn inline_code(scanner: &mut Scanner) {
-    handle_verbatim_inline(scanner, TokenType::InlineCodeDelim, INLINE_CODE_DELIM);
-}
-
-fn inline_literal(scanner: &mut Scanner) {
-    handle_verbatim_inline(scanner, TokenType::InlineLiteralDelim, INLINE_LITERAL_DELIM);
-}
-
-fn link(scanner: &mut Scanner) {
-    // At this point, we've already pushed a LinkOpen token and we need to
-    // process the rest.
-    scanner.collect_until(&[
-        LINK_INTERMEDIATE,
-        LINK_CLOSE,
-        LINE_BREAK,
-        WINDOWS_LINE_BREAK,
-    ]);
-
-    scanner.push_text_token();
-
-    if scanner.peek_match(LINK_INTERMEDIATE) {
-        scanner.push_token(TokenType::LinkIntermediate, LINK_INTERMEDIATE);
-        scanner.advance(LINK_INTERMEDIATE.len());
-
-        scanner.set_text_start_position();
-        scanner.collect_until(&[LINK_CLOSE, LINE_BREAK, WINDOWS_LINE_BREAK]);
-        scanner.push_text_token();
+    fn code_block(&mut self) {
+        self.handle_verbatim_block(TokenType::CodeBlockDelim, CODE_BLOCK_DELIM);
     }
 
-    if scanner.peek_match(LINK_CLOSE) {
-        scanner.push_token(TokenType::LinkClose, LINK_CLOSE);
-        scanner.advance(LINK_CLOSE.len());
+    fn literal_block(&mut self) {
+        self.handle_verbatim_block(TokenType::LiteralBlockDelim, LITERAL_BLOCK_DELIM);
     }
-}
 
-fn no_op(_: &mut Scanner) {}
+    fn quote_block(&mut self) {
+        // The quote block is introduced with a '>' character. After that character, we skip the
+        // inline whitespace before the start of the content, and then we're done, because we
+        // want to continue on with parsing (text formatting could exist in a quote block).
+        self.advance_past_inline_whitespace();
+    }
+
+    fn preceding_whitespace(&mut self) {
+        let patterns_and_tokens: [(&str, TokenType); 2] = [
+            (SPACE, TokenType::StructuralSpace),
+            (TAB, TokenType::StructuralTab),
+        ];
+
+        self.match_and_push_subset(&patterns_and_tokens);
+    }
+
+    fn handle_verbatim_inline(&mut self, delim_token_type: TokenType, delim_pattern: &str) {
+        self.collect_until(&[delim_pattern, WINDOWS_LINE_BREAK, LINE_BREAK]);
+
+        if self.current_string.len() > 0 {
+            self.push_text_token();
+        }
+
+        if self.peek_match(delim_pattern) {
+            self.push_token(delim_token_type, delim_pattern);
+            self.advance(delim_pattern.len());
+        }
+    }
+
+    fn inline_math(&mut self) {
+        self.handle_verbatim_inline(TokenType::InlineMathDelim, INLINE_MATH_DELIM);
+    }
+
+    fn inline_code(&mut self) {
+        self.handle_verbatim_inline(TokenType::InlineCodeDelim, INLINE_CODE_DELIM);
+    }
+
+    fn inline_literal(&mut self) {
+        self.handle_verbatim_inline(TokenType::InlineLiteralDelim, INLINE_LITERAL_DELIM);
+    }
+
+    fn link(&mut self) {
+        // At this point, we've already pushed a LinkOpen token and we need to
+        // process the rest.
+        self.collect_until(&[
+            LINK_INTERMEDIATE,
+            LINK_CLOSE,
+            LINE_BREAK,
+            WINDOWS_LINE_BREAK,
+        ]);
+
+        self.push_text_token();
+
+        if self.peek_match(LINK_INTERMEDIATE) {
+            self.push_token(TokenType::LinkIntermediate, LINK_INTERMEDIATE);
+            self.advance(LINK_INTERMEDIATE.len());
+
+            self.set_text_start_position();
+            self.collect_until(&[LINK_CLOSE, LINE_BREAK, WINDOWS_LINE_BREAK]);
+            self.push_text_token();
+        }
+
+        if self.peek_match(LINK_CLOSE) {
+            self.push_token(TokenType::LinkClose, LINK_CLOSE);
+            self.advance(LINK_CLOSE.len());
+        }
+    }
+
+    fn no_op(&mut self) {}
+}
 
 #[cfg(test)]
 mod tests {
